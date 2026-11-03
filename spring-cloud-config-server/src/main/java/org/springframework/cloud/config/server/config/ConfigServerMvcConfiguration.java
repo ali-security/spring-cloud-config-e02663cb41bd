@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.cloud.config.server.encryption.EnvironmentEncryptor;
 import org.springframework.cloud.config.server.encryption.ResourceEncryptor;
 import org.springframework.cloud.config.server.environment.EnvironmentController;
@@ -34,6 +35,7 @@ import org.springframework.cloud.config.server.resource.ResourceRepository;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.config.annotation.ContentNegotiationConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -56,6 +58,9 @@ public class ConfigServerMvcConfiguration implements WebMvcConfigurer {
 	@Autowired(required = false)
 	private Map<String, ResourceEncryptor> resourceEncryptorMap = new HashMap<>();
 
+	@Autowired
+	private Environment environment;
+
 	@Override
 	public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
 		configurer.mediaType("properties", MediaType.valueOf("text/plain"));
@@ -71,6 +76,7 @@ public class ConfigServerMvcConfiguration implements WebMvcConfigurer {
 				encrypted(envRepository, server), this.objectMapper);
 		controller.setStripDocumentFromYaml(server.isStripDocumentFromYaml());
 		controller.setAcceptEmpty(server.isAcceptEmpty());
+		controller.setValidateProfiles(validateProfiles());
 		return controller;
 	}
 
@@ -82,7 +88,13 @@ public class ConfigServerMvcConfiguration implements WebMvcConfigurer {
 				encrypted(envRepository, server), this.resourceEncryptorMap);
 		controller.setEncryptEnabled(server.getEncrypt().isEnabled());
 		controller.setPlainTextEncryptEnabled(server.getEncrypt().isPlainTextEncrypt());
+		controller.setValidateProfiles(validateProfiles());
 		return controller;
+	}
+
+	private boolean validateProfiles() {
+		return Binder.get(this.environment)
+				.bind("spring.profiles.validate", Boolean.class).orElse(true);
 	}
 
 	private EnvironmentRepository encrypted(EnvironmentRepository envRepository,

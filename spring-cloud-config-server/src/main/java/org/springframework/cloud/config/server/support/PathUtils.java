@@ -19,14 +19,21 @@ package org.springframework.cloud.config.server.support;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.cloud.config.environment.Environment;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.util.Assert;
+import org.springframework.util.ObjectUtils;
 import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
@@ -34,7 +41,57 @@ public abstract class PathUtils {
 
 	private static final Log logger = LogFactory.getLog(PathUtils.class);
 
+	private static final String PROFILE_ALLOWED_CHARS = "-_.+@";
+
 	private PathUtils() {
+	}
+
+	public static boolean isInvalidProfiles(String profiles) {
+		if (ObjectUtils.isEmpty(profiles)) {
+			return false;
+		}
+		try {
+			if (profiles.contains(",")) {
+				validateProfile(StringUtils.commaDelimitedListToSet(profiles));
+			}
+			else {
+				validateProfile(profiles);
+			}
+		}
+		catch (IllegalStateException ex) {
+			return true;
+		}
+		return isInvalidEncodedLocation(profiles);
+	}
+
+	private static void validateProfile(Object value) {
+		if (value instanceof Collection<?>) {
+			((Collection<?>) value).forEach(PathUtils::validateProfile);
+			return;
+		}
+		if (value instanceof Map<?, ?>) {
+			((Map<?, ?>) value).forEach((k, v) -> validateProfile(v));
+			return;
+		}
+		String profile = (value != null) ? value.toString() : null;
+		Assert.state(StringUtils.hasText(profile), "Invalid empty profile");
+		for (int i = 0; i < profile.length(); i++) {
+			int codePoint = profile.codePointAt(i);
+			boolean isAllowedChar = PROFILE_ALLOWED_CHARS.indexOf(codePoint) != -1;
+			Assert.state(isAllowedChar || Character.isLetterOrDigit(codePoint),
+					() -> String.format(
+							"Profile '%s' must contain a letter, digit or allowed char (%s)",
+							profile,
+							Arrays.stream(PROFILE_ALLOWED_CHARS.split(""))
+									.collect(Collectors.joining("', '", "'", "'"))));
+			Assert.state(
+					(i > 0 && i < profile.length() - 1)
+							|| Character.isLetterOrDigit(codePoint),
+					() -> String.format(
+							"Profile '%s' must start and end with a letter or digit",
+							profile));
+		}
+
 	}
 
 	/**
@@ -76,6 +133,13 @@ public abstract class PathUtils {
 			isInvalid = location.contains("#");
 			if (isInvalid && logger.isWarnEnabled()) {
 				logger.warn("Location contains \"#\"");
+			}
+		}
+		if (!isInvalid) {
+			// locations can't start with slash
+			isInvalid = location.startsWith(Environment.SLASH_PLACEHOLDER);
+			if (isInvalid && logger.isWarnEnabled()) {
+				logger.warn("Location starts with \"/\"");
 			}
 		}
 

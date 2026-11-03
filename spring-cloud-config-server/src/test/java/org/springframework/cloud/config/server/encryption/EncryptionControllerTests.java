@@ -21,12 +21,14 @@ import java.util.Map;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
+import org.springframework.cloud.config.server.environment.InvalidEnvironmentRequestException;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.encrypt.Encryptors;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.security.rsa.crypto.RsaSecretEncryptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -172,6 +174,64 @@ public class EncryptionControllerTests {
 				MediaType.TEXT_PLAIN);
 		assertThat(decrypt).as("Wrong decrypted plaintext: " + decrypt)
 				.isEqualTo("foo bar");
+	}
+
+	@Test
+	public void getPublicKeyNameWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.getPublicKey("../app", "default"))
+				.isInstanceOf(InvalidEnvironmentRequestException.class)
+				.hasMessageContaining("Invalid request");
+	}
+
+	@Test
+	public void getPublicKeyProfilesWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.getPublicKey("app", "../default"))
+				.isInstanceOf(InvalidEnvironmentRequestException.class)
+				.hasMessageContaining("Invalid request");
+	}
+
+	@Test
+	public void decryptNameWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.decrypt("../app", "default", "hello",
+				MediaType.TEXT_PLAIN))
+						.isInstanceOf(InvalidEnvironmentRequestException.class)
+						.hasMessageContaining("Invalid request");
+	}
+
+	@Test
+	public void decryptProfilesWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.decrypt("app", "../default", "hello",
+				MediaType.TEXT_PLAIN))
+						.isInstanceOf(InvalidEnvironmentRequestException.class)
+						.hasMessageContaining("Invalid request");
+	}
+
+	@Test
+	public void encryptNameWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.encrypt("../app", "default", "hello",
+				MediaType.TEXT_PLAIN))
+						.isInstanceOf(InvalidEnvironmentRequestException.class)
+						.hasMessageContaining("Invalid request");
+	}
+
+	@Test
+	public void encryptProfilesWithDotDot() {
+		this.controller = new EncryptionController(
+				new SingleTextEncryptorLocator(new RsaSecretEncryptor()));
+		assertThatThrownBy(() -> this.controller.encrypt("app", "../default", "hello",
+				MediaType.TEXT_PLAIN))
+						.isInstanceOf(InvalidEnvironmentRequestException.class)
+						.hasMessageContaining("Invalid request");
 	}
 
 }

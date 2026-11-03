@@ -43,6 +43,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.any;
@@ -681,9 +682,21 @@ public class EnvironmentControllerTests {
 	}
 
 	@Test
+	public void nameStartsWithSlash() {
+		assertThatThrownBy(() -> this.controller.labelled("(_)spam", "bar", null))
+				.isInstanceOf(InvalidEnvironmentRequestException.class);
+	}
+
+	@Test
 	public void labelWithPreviousDirectory() {
 		expected.expect(InvalidEnvironmentRequestException.class);
 		this.controller.labelled("foo", "bar", "..(_)..");
+	}
+
+	@Test
+	public void labelStartsWithSlash() {
+		assertThatThrownBy(() -> this.controller.labelled("foo", "bar", "(_)spam"))
+				.isInstanceOf(InvalidEnvironmentRequestException.class);
 	}
 
 	@Test
@@ -723,6 +736,17 @@ public class EnvironmentControllerTests {
 		assertThatThrownBy(() -> this.controller.labelled("application",
 				"bar,%2e%2e,foo", "label"))
 						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(
+				() -> this.controller.labelled("application", "bar%2Ffoo", "label"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+	}
+
+	@Test
+	public void invalidProfileTestsDisabled() {
+		this.controller.setValidateProfiles(false);
+		assertThatCode(
+				() -> this.controller.labelled("application", "bar,..,foo", "label"))
+						.doesNotThrowAnyException();
 	}
 
 }

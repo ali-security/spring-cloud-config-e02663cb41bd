@@ -47,6 +47,7 @@ import org.springframework.web.util.UrlPathHelper;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.prepareEnvironment;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.resolvePlaceholders;
 import static org.springframework.cloud.config.server.support.PathUtils.isInvalidEncodedLocation;
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidProfiles;
 
 /**
  * An HTTP endpoint for serving up templated plain text resources from an underlying
@@ -79,6 +80,8 @@ public class ResourceController {
 
 	private boolean plainTextEncryptEnabled = false;
 
+	private boolean validateProfiles = true;
+
 	public ResourceController(ResourceRepository resourceRepository,
 			EnvironmentRepository environmentRepository,
 			Map<String, ResourceEncryptor> resourceEncryptorMap) {
@@ -101,6 +104,15 @@ public class ResourceController {
 
 	public void setPlainTextEncryptEnabled(boolean plainTextEncryptEnabled) {
 		this.plainTextEncryptEnabled = plainTextEncryptEnabled;
+	}
+
+	/**
+	 * Flag to indicate that spring profiles are to be validated (default true). If set to
+	 * false, then profiles with invalid characters (e.g. '-') will throw an exception.
+	 * @param validateProfiles the flag to set
+	 */
+	public void setValidateProfiles(boolean validateProfiles) {
+		this.validateProfiles = validateProfiles;
 	}
 
 	@RequestMapping("/{name}/{profile}/{label}/**")
@@ -137,11 +149,12 @@ public class ResourceController {
 
 	synchronized String retrieve(ServletWebRequest request, String name, String profile,
 			String label, String path, boolean resolvePlaceholders) throws IOException {
-		name = Environment.normalize(name);
-		label = Environment.normalize(label);
-		if (isInvalidEncodedLocation(profile)) {
+		name = normalize(name);
+		label = normalize(label);
+		if (this.validateProfiles && isInvalidProfiles(profile)) {
 			throw new InvalidEnvironmentRequestException("Invalid request");
 		}
+		path = normalize(path);
 		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.
@@ -170,6 +183,13 @@ public class ResourceController {
 			}
 			return text;
 		}
+	}
+
+	private String normalize(String part) {
+		if (isInvalidEncodedLocation(part)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
+		return Environment.normalize(part);
 	}
 
 	/*
@@ -206,11 +226,12 @@ public class ResourceController {
 
 	private synchronized byte[] binary(ServletWebRequest request, String name,
 			String profile, String label, String path) throws IOException {
-		name = Environment.normalize(name);
-		label = Environment.normalize(label);
-		if (isInvalidEncodedLocation(profile)) {
+		name = normalize(name);
+		label = normalize(label);
+		if (this.validateProfiles && isInvalidProfiles(profile)) {
 			throw new InvalidEnvironmentRequestException("Invalid request");
 		}
+		path = normalize(path);
 		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.

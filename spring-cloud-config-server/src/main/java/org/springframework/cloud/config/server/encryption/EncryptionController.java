@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.cloud.config.server.environment.InvalidEnvironmentRequestException;
 import org.springframework.cloud.context.encrypt.KeyFormatException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -41,6 +42,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidEncodedLocation;
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidProfiles;
 
 /**
  * @author Dave Syer
@@ -60,6 +64,8 @@ public class EncryptionController {
 	private String defaultApplicationName = "application";
 
 	private String defaultProfile = "default";
+
+	private boolean validateProfiles = true;
 
 	public EncryptionController(TextEncryptorLocator encryptorLocator) {
 		this.encryptorLocator = encryptorLocator;
@@ -141,6 +147,13 @@ public class EncryptionController {
 	}
 
 	private TextEncryptor getEncryptor(String name, String profiles, String data) {
+		if (isInvalidEncodedLocation(name)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
+		if (this.validateProfiles && isInvalidProfiles(profiles)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
+
 		if (encryptorLocator == null) {
 			throw new KeyNotInstalledException();
 		}
@@ -251,6 +264,10 @@ public class EncryptionController {
 		body.put("status", "INVALID");
 		body.put("description", "Text not encrypted with this key");
 		return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+	}
+
+	public void setValidateProfiles(boolean validateProfiles) {
+		this.validateProfiles = validateProfiles;
 	}
 
 }

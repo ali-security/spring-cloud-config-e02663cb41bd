@@ -49,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.prepareEnvironment;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.resolvePlaceholders;
 import static org.springframework.cloud.config.server.support.PathUtils.isInvalidEncodedLocation;
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidProfiles;
 
 /**
  * @author Dave Syer
@@ -73,6 +74,8 @@ public class EnvironmentController {
 	private boolean stripDocument = true;
 
 	private boolean acceptEmpty = true;
+
+	private boolean validateProfiles = true;
 
 	public EnvironmentController(EnvironmentRepository repository) {
 		this(repository, new ObjectMapper());
@@ -99,6 +102,15 @@ public class EnvironmentController {
 	 */
 	public void setAcceptEmpty(boolean acceptEmpty) {
 		this.acceptEmpty = acceptEmpty;
+	}
+
+	/**
+	 * Flag to indicate that spring profiles are to be validated (default true). If set to
+	 * false, then profiles with invalid characters (e.g. '-') will throw an exception.
+	 * @param validateProfiles the flag to set
+	 */
+	public void setValidateProfiles(boolean validateProfiles) {
+		this.validateProfiles = validateProfiles;
 	}
 
 	@RequestMapping(path = "/{name}/{profiles:.*[^-].*}",
@@ -133,7 +145,7 @@ public class EnvironmentController {
 			boolean includeOrigin) {
 		name = normalize(name);
 		label = normalize(label);
-		if (isInvalidEncodedLocation(profiles)) {
+		if (this.validateProfiles && isInvalidProfiles(profiles)) {
 			throw new InvalidEnvironmentRequestException("Invalid request");
 		}
 		Environment environment = this.repository.findOne(name, profiles, label,
