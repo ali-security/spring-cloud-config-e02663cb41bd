@@ -18,8 +18,13 @@ package org.springframework.cloud.config.server.environment;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 
 import org.eclipse.jgit.util.FileUtils;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,6 +37,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.StandardEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author Michael Prankl
@@ -131,6 +137,99 @@ public class SVNKitEnvironmentRepositoryTests {
 		Environment environment = this.repository.findOne("bar", "staging",
 				"unknownlabel");
 		assertThat(environment.getPropertySources().size()).isEqualTo(0);
+	}
+
+	@Test
+	public void basedirAsSymlinkIsRejectedOnCheckout() throws Exception {
+		File realTarget = new File("target/config-real-basedir-for-symlink-test");
+		realTarget.mkdirs();
+		Path link = new File("target/config-symlink-basedir").toPath().toAbsolutePath();
+		try {
+			Files.deleteIfExists(link);
+			Files.createSymbolicLink(link, realTarget.toPath().toAbsolutePath());
+		}
+		catch (IOException | UnsupportedOperationException | SecurityException ex) {
+			Assume.assumeNoException(
+					"Cannot create symbolic link for test: " + ex.getMessage(), ex);
+		}
+		try {
+			this.repository.setBasedir(link.toFile());
+			assertThatThrownBy(
+					() -> this.repository.findOne("bar", "staging", "trunk"))
+							.isInstanceOf(IllegalStateException.class)
+							.hasMessageContaining("symbolic link");
+		}
+		finally {
+			Files.deleteIfExists(link);
+			FileUtils.delete(realTarget, FileUtils.RECURSIVE | FileUtils.RETRY);
+		}
+	}
+
+	@Test
+	public void svnMetaDirAsSymlinkIsRejected() throws Exception {
+		this.repository.setBasedir(this.basedir);
+		this.repository.findOne("bar", "staging", "trunk");
+
+		Path svnMetaDir = this.basedir.toPath().resolve(".svn");
+		Assume.assumeTrue(".svn must exist as a real directory after checkout",
+				Files.isDirectory(svnMetaDir, LinkOption.NOFOLLOW_LINKS));
+
+		Path backup = this.basedir.toPath().resolve(".svn-backup-for-symlink-test");
+		Files.deleteIfExists(backup);
+		Files.move(svnMetaDir, backup);
+		try {
+			Files.createSymbolicLink(svnMetaDir, backup);
+		}
+		catch (IOException | UnsupportedOperationException | SecurityException ex) {
+			Files.move(backup, svnMetaDir);
+			Assume.assumeNoException(
+					"Cannot create symbolic link for test: " + ex.getMessage(), ex);
+		}
+		try {
+			assertThatThrownBy(
+					() -> this.repository.findOne("bar", "staging", "trunk"))
+							.isInstanceOf(IllegalStateException.class)
+							.hasMessageContaining("symbolic link")
+							.hasMessageContaining(".svn");
+		}
+		finally {
+			Files.deleteIfExists(svnMetaDir);
+			if (Files.exists(backup)) {
+				Files.move(backup, svnMetaDir);
+			}
+		}
+	}
+
+	@Test
+	public void fileUriAsSymlinkIsRejected() throws Exception {
+		String realUri = ConfigServerTestUtils.prepareLocalSvnRepo(
+				"src/test/resources/" + REPOSITORY_NAME,
+				"target/repos/" + REPOSITORY_NAME);
+		File realDir = new File(URI.create(realUri));
+		Path realPath = realDir.toPath().toAbsolutePath();
+		Path parent = realPath.getParent();
+		Assume.assumeTrue(parent != null);
+		Path link = parent.resolve(REPOSITORY_NAME + "-uri-symlink");
+		try {
+			Files.deleteIfExists(link);
+			Files.createSymbolicLink(link, realPath);
+		}
+		catch (IOException | UnsupportedOperationException | SecurityException ex) {
+			Assume.assumeNoException(
+					"Cannot create symbolic link for test: " + ex.getMessage(), ex);
+		}
+		try {
+			String symlinkUri = link.toUri().toString();
+			this.repository.setUri(symlinkUri);
+			this.repository.setBasedir(this.basedir);
+			assertThatThrownBy(
+					() -> this.repository.findOne("bar", "staging", "trunk"))
+							.isInstanceOf(IllegalStateException.class)
+							.hasMessageContaining("symbolic link");
+		}
+		finally {
+			Files.deleteIfExists(link);
+		}
 	}
 
 	@Test
