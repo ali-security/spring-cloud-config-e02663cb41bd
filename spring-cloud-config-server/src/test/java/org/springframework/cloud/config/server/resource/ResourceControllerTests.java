@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.config.server.encryption.ResourceEncryptor;
+import org.springframework.cloud.config.server.environment.InvalidEnvironmentRequestException;
 import org.springframework.cloud.config.server.environment.NativeEnvironmentProperties;
 import org.springframework.cloud.config.server.environment.NativeEnvironmentRepository;
 import org.springframework.cloud.config.server.environment.NativeEnvironmentRepositoryTests;
@@ -35,6 +36,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.ServletWebRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -366,6 +368,34 @@ public class ResourceControllerTests {
 
 		// then
 		assertThat(resource).isEqualToIgnoringNewLines("foo: dev_bar/spam");
+	}
+
+	@Test
+	public void invalidProfileTests() {
+		assertThatThrownBy(() -> this.controller.retrieve("application", "bar,..,foo",
+				"label", "template.json", true))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.binary("application", "bar,..,foo",
+				"label", "template.json"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.retrieve("application", "..", "label",
+				"template.json", true))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.binary("application", "..", "label",
+				"template.json"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.retrieve("application", "%2e%2e",
+				"label", "template.json", true))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.binary("application", "%2e%2e",
+				"label", "template.json"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.retrieve("application",
+				"bar,%2e%2e,foo", "label", "template.json", true))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.binary("application",
+				"bar,%2e%2e,foo", "label", "template.json"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
 	}
 
 }

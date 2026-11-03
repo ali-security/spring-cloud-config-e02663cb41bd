@@ -33,6 +33,7 @@ import org.springframework.cloud.config.server.test.ConfigServerTestUtils;
 import org.springframework.core.env.StandardEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author Dave Syer
@@ -119,6 +120,42 @@ public class MultipleJGitEnvironmentApplicationPlaceholderRepositoryTests {
 				.isEqualTo(getUri("*").replace("{application}", "test2-config-repo")
 						+ "/application.properties");
 		assertVersion(environment);
+	}
+
+	@Test
+	public void invalidAuthorityTests() {
+		assertThatThrownBy(() -> createRepository("test", "*-config-repo",
+				"http://{profile}:8080/test1-config-repo"))
+						.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> createRepository("test", "*-config-repo",
+				"http://localhost:{profile}/test1-config-repo"))
+						.isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	public void invalidAuthorityFromPropertiesTests() {
+		// the default repository uri is bound from configuration properties
+		MultipleJGitEnvironmentProperties hostTemplate = new MultipleJGitEnvironmentProperties();
+		hostTemplate.setUri("http://{profile}:8080/test1-config-repo");
+		assertThatThrownBy(() -> new MultipleJGitEnvironmentRepository(this.environment,
+				hostTemplate)).isInstanceOf(IllegalArgumentException.class);
+
+		// pattern-matching repositories are bound from configuration properties too
+		MultipleJGitEnvironmentProperties portTemplate = new MultipleJGitEnvironmentProperties();
+		portTemplate.getRepos().put("test",
+				new MultipleJGitEnvironmentProperties.PatternMatchingJGitEnvironmentProperties(
+						"http://localhost:{profile}/test1-config-repo"));
+		assertThatThrownBy(() -> new MultipleJGitEnvironmentRepository(this.environment,
+				portTemplate)).isInstanceOf(IllegalStateException.class);
+
+		// placeholders in the path are still supported and cannot change the host
+		MultipleJGitEnvironmentProperties pathTemplate = new MultipleJGitEnvironmentProperties();
+		pathTemplate.setUri("http://localhost/{profile}-config-repo");
+		MultipleJGitEnvironmentRepository pathTemplateRepository = new MultipleJGitEnvironmentRepository(
+				this.environment, pathTemplate);
+		assertThat(pathTemplateRepository.getRepository(pathTemplateRepository, "app",
+				"evil.example.com", "master").getUri())
+						.isEqualTo("http://localhost/evil.example.com-config-repo");
 	}
 
 	@Test

@@ -28,6 +28,7 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.cloud.config.environment.Environment;
 import org.springframework.cloud.config.server.encryption.ResourceEncryptor;
 import org.springframework.cloud.config.server.environment.EnvironmentRepository;
+import org.springframework.cloud.config.server.environment.InvalidEnvironmentRequestException;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -45,6 +46,7 @@ import org.springframework.web.util.UrlPathHelper;
 
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.prepareEnvironment;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.resolvePlaceholders;
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidEncodedLocation;
 
 /**
  * An HTTP endpoint for serving up templated plain text resources from an underlying
@@ -137,6 +139,9 @@ public class ResourceController {
 			String label, String path, boolean resolvePlaceholders) throws IOException {
 		name = Environment.normalize(name);
 		label = Environment.normalize(label);
+		if (isInvalidEncodedLocation(profile)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
 		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.
@@ -203,6 +208,9 @@ public class ResourceController {
 			String profile, String label, String path) throws IOException {
 		name = Environment.normalize(name);
 		label = Environment.normalize(label);
+		if (isInvalidEncodedLocation(profile)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
 		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.

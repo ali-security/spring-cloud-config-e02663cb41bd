@@ -43,6 +43,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -707,6 +708,21 @@ public class EnvironmentControllerTests {
 	public void nameWithPoundEncoded() {
 		expected.expect(InvalidEnvironmentRequestException.class);
 		this.controller.labelled("foo%23", "bar", "mylabel");
+	}
+
+	@Test
+	public void invalidProfileTests() {
+		assertThatThrownBy(
+				() -> this.controller.labelled("application", "bar,..,foo", "label"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.labelled("application", "..", "label"))
+				.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(
+				() -> this.controller.labelled("application", "%2e%2e", "label"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
+		assertThatThrownBy(() -> this.controller.labelled("application",
+				"bar,%2e%2e,foo", "label"))
+						.isInstanceOf(InvalidEnvironmentRequestException.class);
 	}
 
 }

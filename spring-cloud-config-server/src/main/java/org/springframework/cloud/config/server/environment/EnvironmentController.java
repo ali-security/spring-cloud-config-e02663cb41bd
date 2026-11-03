@@ -35,7 +35,6 @@ import org.yaml.snakeyaml.nodes.Tag;
 import org.springframework.cloud.config.environment.Environment;
 import org.springframework.cloud.config.environment.EnvironmentMediaType;
 import org.springframework.cloud.config.environment.PropertySource;
-import org.springframework.cloud.config.server.support.PathUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -49,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.prepareEnvironment;
 import static org.springframework.cloud.config.server.support.EnvironmentPropertySource.resolvePlaceholders;
+import static org.springframework.cloud.config.server.support.PathUtils.isInvalidEncodedLocation;
 
 /**
  * @author Dave Syer
@@ -133,6 +133,9 @@ public class EnvironmentController {
 			boolean includeOrigin) {
 		name = normalize(name);
 		label = normalize(label);
+		if (isInvalidEncodedLocation(profiles)) {
+			throw new InvalidEnvironmentRequestException("Invalid request");
+		}
 		Environment environment = this.repository.findOne(name, profiles, label,
 				includeOrigin);
 		if (!this.acceptEmpty
@@ -143,7 +146,7 @@ public class EnvironmentController {
 	}
 
 	private String normalize(String part) {
-		if (PathUtils.isInvalidEncodedLocation(part)) {
+		if (isInvalidEncodedLocation(part)) {
 			throw new InvalidEnvironmentRequestException("Invalid request");
 		}
 		return Environment.normalize(part);
